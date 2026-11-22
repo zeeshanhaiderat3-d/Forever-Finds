@@ -1,0 +1,221 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "An affiliate product listing curated on Forever Finds.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique product identifier matching the Firestore document ID."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Display name of the product."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Short editorial description (may be empty if omitted)."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "beauty-personal-care",
+            "fashion-accessories",
+            "home-kitchen",
+            "electronics-gadgets",
+            "lifestyle-wellness"
+          ],
+          "description": "Canonical Forever Finds category slug."
+        },
+        "categoryLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Human-readable category label."
+        },
+        "imageUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^(https://|http://|/src/assets/images/).+",
+          "description": "Verified HTTP/HTTPS product image URL or local asset path."
+        },
+        "price": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Optional product price string from CSV (empty if omitted)."
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 12,
+          "description": "Optional currency code (e.g., USD, GBP, CAD)."
+        },
+        "affiliateUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^https?://.+",
+          "description": "Verified external affiliate URL."
+        },
+        "originalUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "Optional original merchant URL (empty or https/http URL)."
+        },
+        "featured": {
+          "type": "boolean",
+          "description": "Whether the product appears in homepage featured sections."
+        },
+        "trending": {
+          "type": "boolean",
+          "description": "Whether the product appears in trending sections."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["published"],
+          "description": "Publication status enforced on public list queries."
+        },
+        "importedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "UID of the administrator who imported this product."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the product was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the product was last updated."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "category",
+        "categoryLabel",
+        "imageUrl",
+        "price",
+        "currency",
+        "affiliateUrl",
+        "originalUrl",
+        "featured",
+        "trending",
+        "status",
+        "importedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized administrator record keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "ImportLog": {
+      "title": "ImportLog",
+      "description": "Audit summary of a bulk CSV product import run.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "totalRows": {
+          "type": "number"
+        },
+        "importedCount": {
+          "type": "number"
+        },
+        "skippedCount": {
+          "type": "number"
+        },
+        "duplicateCount": {
+          "type": "number"
+        },
+        "failedCount": {
+          "type": "number"
+        },
+        "importedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "fileName",
+        "totalRows",
+        "importedCount",
+        "skippedCount",
+        "duplicateCount",
+        "failedCount",
+        "importedBy",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/Product"
+      },
+      "description": "Publicly readable affiliate product catalog; writable only by verified administrators."
+    },
+    "/admins/{adminId}": {
+      "schema": {
+        "$ref": "#/entities/AdminUser"
+      },
+      "description": "Administrator allowlist keyed by Firebase Auth UID; readable and writable only by existing administrators."
+    },
+    "/import_logs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/ImportLog"
+      },
+      "description": "Bulk CSV import audit logs restricted strictly to administrators."
+    }
+  }
+}

@@ -1,0 +1,182 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'zeeshanhaiderat3@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidCategory(category) {
+      return category in [
+        'beauty-personal-care',
+        'fashion-accessories',
+        'home-kitchen',
+        'electronics-gadgets',
+        'lifestyle-wellness'
+      ];
+    }
+
+    function isValidHttpUrl(url) {
+      return url is string && url.size() >= 1 && url.size() <= 2048 && url.matches('^https?://.+');
+    }
+
+    function isValidImageUrl(url) {
+      return url is string && url.size() >= 1 && url.size() <= 2048 && (
+        url.matches('^https?://.+') ||
+        url.matches('^/src/assets/images/.+')
+      );
+    }
+
+    function isValidOptionalHttpUrl(url) {
+      return url is string && url.size() <= 2048 && (url == '' || url.matches('^https?://.+'));
+    }
+
+    function isValidProduct(data, productId) {
+      return data.keys().hasAll([
+          'id', 'name', 'description', 'category', 'categoryLabel',
+          'imageUrl', 'price', 'currency', 'affiliateUrl', 'originalUrl',
+          'featured', 'trending', 'status', 'importedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'description', 'category', 'categoryLabel',
+          'imageUrl', 'price', 'currency', 'affiliateUrl', 'originalUrl',
+          'featured', 'trending', 'status', 'importedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == productId &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        data.description is string && data.description.size() <= 2000 &&
+        isValidCategory(data.category) &&
+        data.categoryLabel is string && data.categoryLabel.size() >= 1 && data.categoryLabel.size() <= 80 &&
+        isValidImageUrl(data.imageUrl) &&
+        data.price is string && data.price.size() <= 40 &&
+        data.currency is string && data.currency.size() <= 12 &&
+        isValidHttpUrl(data.affiliateUrl) &&
+        isValidOptionalHttpUrl(data.originalUrl) &&
+        data.featured is bool &&
+        data.trending is bool &&
+        data.status == 'published' &&
+        data.importedBy is string && data.importedBy.size() >= 1 && data.importedBy.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminUser(data, adminId) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'role', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.uid == adminId &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.role == 'admin' &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidImportLog(data, logId) {
+      return data.keys().hasAll([
+          'id', 'fileName', 'totalRows', 'importedCount', 'skippedCount',
+          'duplicateCount', 'failedCount', 'importedBy', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'fileName', 'totalRows', 'importedCount', 'skippedCount',
+          'duplicateCount', 'failedCount', 'importedBy', 'createdAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id == logId &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 255 &&
+        data.totalRows is number && data.totalRows >= 0 && data.totalRows <= 1000 &&
+        data.importedCount is number && data.importedCount >= 0 && data.importedCount <= 1000 &&
+        data.skippedCount is number && data.skippedCount >= 0 && data.skippedCount <= 1000 &&
+        data.duplicateCount is number && data.duplicateCount >= 0 && data.duplicateCount <= 1000 &&
+        data.failedCount is number && data.failedCount >= 0 && data.failedCount <= 1000 &&
+        data.importedBy is string && data.importedBy == request.auth.uid &&
+        data.createdAt is timestamp;
+    }
+
+    // Connection test document (single-doc get only, zero PII)
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write: if false;
+    }
+
+    // Publicly readable published catalog; Admin-only create/update/delete
+    match /products/{productId} {
+      allow get: if isValidId(productId) && (existing().status == 'published' || isAdmin());
+      allow list: if existing().status == 'published';
+      allow create: if isAdmin() &&
+        isValidId(productId) &&
+        isValidProduct(incoming(), productId) &&
+        incoming().importedBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(productId) &&
+        isValidProduct(incoming(), productId) &&
+        incoming().id == existing().id &&
+        incoming().importedBy == existing().importedBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'description', 'category', 'categoryLabel',
+          'imageUrl', 'price', 'currency', 'affiliateUrl', 'originalUrl',
+          'featured', 'trending', 'status', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+
+    // Administrator allowlist (no self-assignment)
+    match /admins/{adminId} {
+      allow get: if isAdmin() && isValidId(adminId);
+      allow list: if isVerifiedUser() && request.auth.token.email == 'zeeshanhaiderat3@gmail.com';
+      allow create: if isAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminUser(incoming(), adminId) &&
+        incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(adminId) && adminId != request.auth.uid;
+    }
+
+    // Bulk CSV import audit logs (Admin only)
+    match /import_logs/{logId} {
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isVerifiedUser() && (
+        request.auth.token.email == 'zeeshanhaiderat3@gmail.com' ||
+        existing().importedBy == request.auth.uid
+      );
+      allow create: if isAdmin() &&
+        isValidId(logId) &&
+        isValidImportLog(incoming(), logId) &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+  }
+}

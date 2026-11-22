@@ -1,0 +1,6 @@
+{
+  "name": "Forever Finds",
+  "description": "Your Everyday Finds, All in One Place. Thoughtfully curated luxury minimalist affiliate finds across beauty, fashion, home, electronics, and wellness for USA, UK, and Canada.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
